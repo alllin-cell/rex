@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grand Luxury Tree Final v4 - GUI & Audio</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000000; font-family: 'Times New Roman', serif; user-select: none; }
+        #canvas-container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
+        
+        /* UI Overlay */
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 10; pointer-events: none;
+            display: flex; flex-direction: column; 
+            align-items: center;
+            justify-content: space-between; /* Push controls to bottom */
+            padding: 40px 0;
+            box-sizing: border-box;
+            transition: opacity 0.5s ease;
+        }
+        
+        .ui-hidden { opacity: 0 !important; pointer-events: none !important; }
+
+        /* Loader */
+        #loader {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 100;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            transition: opacity 0.8s ease-out;
+        }
+        .loader-text {
+            color: #d4af37; font-size: 14px; letter-spacing: 4px; margin-top: 20px;
+            text-transform: uppercase; font-weight: 100;
+        }
+        .spinner {
+            width: 40px; height: 40px; border: 1px solid rgba(212, 175, 55, 0.2); 
+            border-top: 1px solid #d4af37; border-radius: 50%; 
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Typography */
+        h1 { 
+            color: #fceea7; font-size: 56px; margin-top: 20px; font-weight: 400; 
+            letter-spacing: 6px; 
+            text-shadow: 0 0 50px rgba(252, 238, 167, 0.6); 
+            background: linear-gradient(to bottom, #fff, #eebb66);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            font-family: 'Cinzel', serif;
+            text-align: center;
+        }
+
+        /* Bottom Controls Bar */
+        .controls-bar {
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(212, 175, 55, 0.3);
+            border-radius: 30px;
+            padding: 10px 30px;
+            display: flex;
+            gap: 15px;
+            pointer-events: auto;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+
+        .btn-style {
+            background: transparent;
+            border: 1px solid rgba(212, 175, 55, 0.3); 
+            color: #d4af37; 
+            padding: 8px 16px; 
+            cursor: pointer; 
+            text-transform: uppercase; 
+            letter-spacing: 1px; 
+            font-size: 11px;
+            transition: all 0.3s;
+            border-radius: 4px;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .btn-style:hover { 
+            background: rgba(212, 175, 55, 0.2); 
+            box-shadow: 0 0 15px rgba(212, 175, 55, 0.3);
+            border-color: #d4af37;
+        }
+        .btn-icon { font-size: 14px; }
+
+        /* Active State for Music */
+        .music-active { background: rgba(212, 175, 55, 0.8) !important; color: #000 !important; }
+
+        input[type="file"] { display: none; }
+        
+        /* GUI Container override if needed */
+        .lil-gui { --name-width: 40% !important; }
+    </style>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap');
+    </style>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+                "@mediapipe/tasks-vision": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/+esm",
+                "lil-gui": "https://cdn.jsdelivr.net/npm/lil-gui@0.19.1/dist/lil-gui.esm.min.js"
+            }
+        }
+    </script>
+</head>
+<body>
+
+    <div id="loader">
+        <div class="spinner"></div>
+        <div class="loader-text">Initializing Experience</div>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <div id="ui-layer">
+<div class="greeting">
+    <h1>
+        To Rex<br>
+        圣诞快乐 & 生日快乐 🎄🎂
+    </h1>
+</div>
+greeting {
+    position: absolute;
+    top: 60px;               /* 控制整体高度，可微调 */
+    width: 100%;
+    text-align: center;
+    z-index: 20;
+    pointer-events: none;
+}
+
+.greeting h1 {
+    margin: 0;
+    font-size: 48px;         /* 两行完全一样大 */
+    font-weight: 400;
+    letter-spacing: 6px;
+    line-height: 1.25;
+}
+        
+        <div class="controls-bar">
+            <label class="btn-style" title="Upload Photos">
+                <span class="btn-icon">📷</span> Add Memories
+                <input type="file" id="file-input" multiple accept="image/*">
+            </label>
+
+            <button id="play-btn" class="btn-style" title="Play Default Music">
+                <span class="btn-icon">▶</span> BGM
+            </button>
+
+            <label class="btn-style" title="Upload your own MP3">
+                <span class="btn-icon">♫</span> Custom Audio
+                <input type="file" id="audio-input" accept="audio/*">
+            </label>
+
+            <button id="hide-btn" class="btn-style" title="Hide UI (Press H)">
+                <span class="btn-icon">👁</span> Hide UI
+            </button>
+        </div>
+    </div>
+
+    <video id="webcam" autoplay playsinline style="display:none;"></video>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'; 
+        import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
+        import GUI from 'lil-gui';
+
+        // --- GLOBAL PARAMS (Linked to GUI) ---
+        const PARAMS = {
+            bloomStrength: 1.2,
+            bloomRadius: 0.5,
+            rotationSpeed: 1.0,
+            particleSize: 1.0,
+            snowDensity: 1.0, // 0 to 1
+            musicVolume: 0.5
+        };
+
+        const CONFIG = {
+            colors: {
+                bg: 0x000000, 
+                champagneGold: 0xffd966, 
+                deepGreen: 0x03180a,      
+                accentRed: 0x990000,      
+            },
+            particles: {
+                count: 1200,      
+                snowCount: 800,
+                treeHeight: 24,  
+                treeRadius: 8    
+            },
+            ai: { detectInterval: 80 }
+        };
+
+        const STATE = {
+            mode: 'TREE', 
+            focusTarget: null,
+            hand: { detected: false, x: 0, y: 0 },
+            targetRotation: { x: 0, y: 0 },
+            currentRotation: { x: 0, y: 0 },
+            isPlaying: false
+        };
+
+        let scene, camera, renderer, composer, bloomPass;
+        let mainGroup, snowGroup; 
+        let clock = new THREE.Clock();
+        let particleSystem = []; 
+        let photoMeshGroup = new THREE.Group();
+        let handLandmarker, video;
+        let caneTexture, snowTexture;
+        let lastAiTime = 0;
+        let gui; // GUI instance
+
+        // Audio
+        let sound, audioListener, audioLoader;
+        // Reliable Default Music (Piano Christmas)
+        const DEFAULT_AUDIO = 'music/bgm.mp3';
+
+        async function init() {
+            initThree();
+            setupGUI(); // Initialize Control Panel
+            setupEnvironment(); 
+            setupLights();
+            createTextures();
+            createSnowTexture();
+            createParticles(); 
+            createSnow();        
+            createDefaultPhotos();
+            setupPostProcessing();
+            setupAudioSystem();       
+            setupEvents();
+            
+            await initMediaPipe();
+            
+            const loader = document.getElementById('loader');
+            loader.style.opacity = 0;
+            setTimeout(() => loader.remove(), 800);
+
+            animate();
+        }
+
+        function setupGUI() {
+            gui = new GUI({ title: 'Tree Settings' });
+            
+            const folderVisuals = gui.addFolder('Visuals');
+            folderVisuals.add(PARAMS, 'bloomStrength', 0, 3).name('Glow Strength').onChange(v => bloomPass.strength = v);
+            folderVisuals.add(PARAMS, 'particleSize', 0.1, 2.0).name('Particle Scale');
+            
+            const folderMotion = gui.addFolder('Motion');
+            folderMotion.add(PARAMS, 'rotationSpeed', 0, 3).name('Spin Speed');
+            folderMotion.add(PARAMS, 'snowDensity', 0, 1).name('Snow Visibility').onChange(v => {
+                snowGroup.visible = v > 0.05;
+                snowGroup.children.forEach(c => c.visible = Math.random() < v);
+            });
+
+            const folderAudio = gui.addFolder('Audio');
+            folderAudio.add(PARAMS, 'musicVolume', 0, 1).name('Volume').onChange(v => {
+                if(sound) sound.setVolume(v);
+            });
+        }
+
+        function initThree() {
+            const container = document.getElementById('canvas-container');
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(CONFIG.colors.bg);
+            scene.fog = new THREE.FogExp2(CONFIG.colors.bg, 0.02);
+
+            camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 2, 50); 
+
+            renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.toneMapping = THREE.ReinhardToneMapping; 
+            renderer.toneMappingExposure = 2.0; 
+            container.appendChild(renderer.domElement);
+
+            mainGroup = new THREE.Group();
+            scene.add(mainGroup);
+            
+            snowGroup = new THREE.Group();
+            scene.add(snowGroup);
+        }
+
+        function setupAudioSystem() {
+            audioListener = new THREE.AudioListener();
+            camera.add(audioListener);
+            sound = new THREE.Audio(audioListener);
+            audioLoader = new THREE.AudioLoader();
+
+            // Setup Default Play Button
+            const playBtn = document.getElementById('play-btn');
+            playBtn.addEventListener('click', () => {
+                if (sound.isPlaying) {
+                    sound.pause();
+                    playBtn.classList.remove('music-active');
+                    playBtn.innerHTML = '<span class="btn-icon">▶</span> BGM';
+                } else {
+                    if (!sound.buffer) {
+                        // First load
+                        playBtn.innerHTML = '<span class="btn-icon">⌛</span> Loading...';
+                        audioLoader.load(DEFAULT_AUDIO, (buffer) => {
+                            sound.setBuffer(buffer);
+                            sound.setLoop(true);
+                            sound.setVolume(PARAMS.musicVolume);
+                            sound.play();
+                            playBtn.classList.add('music-active');
+                            playBtn.innerHTML = '<span class="btn-icon">⏸</span> Pause';
+                        });
+                    } else {
+                        sound.play();
+                        playBtn.classList.add('music-active');
+                        playBtn.innerHTML = '<span class="btn-icon">⏸</span> Pause';
+                    }
+                }
+            });
+
+            // Setup Custom Upload
+            const audioInput = document.getElementById('audio-input');
+            audioInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const url = URL.createObjectURL(file);
+                playBtn.innerHTML = '<span class="btn-icon">⌛</span> Loading Custom...';
+                
+                if(sound.isPlaying) sound.stop();
+
+                audioLoader.load(url, (buffer) => {
+                    sound.setBuffer(buffer);
+                    sound.setLoop(true);
+                    sound.setVolume(PARAMS.musicVolume);
+                    sound.play();
+                    playBtn.classList.add('music-active');
+                    playBtn.innerHTML = '<span class="btn-icon">⏸</span> Pause (Custom)';
+                });
+            });
+        }
+
+        function setupEnvironment() {
+            const pmremGenerator = new THREE.PMREMGenerator(renderer);
+            scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
+        }
+
+        function setupLights() {
+            const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambient);
+            const innerLight = new THREE.PointLight(0xffaa00, 2, 20);
+            innerLight.position.set(0, 5, 0);
+            mainGroup.add(innerLight);
+            const spotGold = new THREE.SpotLight(0xffcc66, 800);
+            spotGold.position.set(30, 40, 40);
+            scene.add(spotGold);
+        }
+
+        function setupPostProcessing() {
+            const renderScene = new RenderPass(scene, camera);
+            bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.2, 0.5, 0.9);
+            composer = new EffectComposer(renderer);
+            composer.addPass(renderScene);
+            composer.addPass(bloomPass);
+        }
+
+        function createTextures() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 128; canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,128,128);
+            ctx.fillStyle = '#880000'; 
+            ctx.beginPath();
+            for(let i=-128; i<256; i+=32) {
+                ctx.moveTo(i, 0); ctx.lineTo(i+32, 128); ctx.lineTo(i+16, 128); ctx.lineTo(i-16, 0);
+            }
+            ctx.fill();
+            caneTexture = new THREE.CanvasTexture(canvas);
+            caneTexture.wrapS = THREE.RepeatWrapping; caneTexture.wrapT = THREE.RepeatWrapping;
+            caneTexture.repeat.set(3, 3);
+        }
+
+        function createSnowTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 32; canvas.height = 32;
+            const ctx = canvas.getContext('2d');
+            const grad = ctx.createRadialGradient(16,16,0, 16,16,16);
+            grad.addColorStop(0, 'rgba(255,255,255,1)');
+            grad.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0,0,32,32);
+            snowTexture = new THREE.CanvasTexture(canvas);
+        }
+
+        class Particle {
+            constructor(mesh, type) {
+                this.mesh = mesh;
+                this.type = type;
+                this.posTree = new THREE.Vector3();
+                this.posScatter = new THREE.Vector3();
+                this.baseScale = mesh.scale.x; 
+                this.isSnow = (type === 'SNOW');
+                
+                if(this.isSnow) {
+                    this.fallSpeed = 0.5 + Math.random() * 1.5;
+                    this.swaySpeed = Math.random() * 2;
+                    this.swayOffset = Math.random() * Math.PI;
+                    return; 
+                }
+
+                const speedMult = (type === 'PHOTO') ? 0.3 : 1.5;
+                this.spinSpeed = new THREE.Vector3(
+                    (Math.random() - 0.5) * speedMult,
+                    (Math.random() - 0.5) * speedMult,
+                    (Math.random() - 0.5) * speedMult
+                );
+                this.calculatePositions();
+            }
+
+            calculatePositions() {
+                const h = CONFIG.particles.treeHeight;
+                const halfH = h / 2;
+                let t = Math.random(); t = Math.pow(t, 0.8); 
+                const y = (t * h) - halfH;
+                let rMax = CONFIG.particles.treeRadius * (1.0 - t); if (rMax < 0.5) rMax = 0.5;
+                const angle = t * 50 * Math.PI + Math.random() * Math.PI; 
+                const r = rMax * (0.8 + Math.random() * 0.4); 
+                this.posTree.set(Math.cos(angle) * r, y, Math.sin(angle) * r);
+
+                let rScatter = (8 + Math.random()*12);
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos(2 * Math.random() - 1);
+                this.posScatter.set(
+                    rScatter * Math.sin(phi) * Math.cos(theta),
+                    rScatter * Math.sin(phi) * Math.sin(theta),
+                    rScatter * Math.cos(phi)
+                );
+            }
+
+            update(dt, mode, focusTargetMesh) {
+                if(this.isSnow) {
+                    if(!this.mesh.visible) return; // Skip if hidden by GUI
+                    this.mesh.position.y -= this.fallSpeed * dt * 5; 
+                    this.mesh.position.x += Math.sin(clock.elapsedTime * this.swaySpeed + this.swayOffset) * 0.05; 
+                    if(this.mesh.position.y < -20) {
+                        this.mesh.position.y = 25;
+                        this.mesh.position.x = (Math.random() - 0.5) * 40;
+                        this.mesh.position.z = (Math.random() - 0.5) * 40;
+                    }
+                    return;
+                }
+
+                let target = this.posTree;
+                if (mode === 'SCATTER') target = this.posScatter;
+                else if (mode === 'FOCUS') {
+                    if (this.mesh === focusTargetMesh) {
+                        const desiredWorldPos = new THREE.Vector3(0, 1, 38);
+                        const invMatrix = new THREE.Matrix4().copy(mainGroup.matrixWorld).invert();
+                        target = desiredWorldPos.applyMatrix4(invMatrix);
+                    } else target = this.posScatter;
+                }
+
+                const lerpSpeed = (mode === 'FOCUS' && this.mesh === focusTargetMesh) ? 4.0 : 2.0; 
+                this.mesh.position.lerp(target, lerpSpeed * dt);
+
+                if (mode === 'SCATTER') {
+                    this.mesh.rotation.x += this.spinSpeed.x * dt;
+                    this.mesh.rotation.y += this.spinSpeed.y * dt;
+                    this.mesh.rotation.z += this.spinSpeed.z * dt;
+                } else if (mode === 'TREE') {
+                    this.mesh.rotation.x = THREE.MathUtils.lerp(this.mesh.rotation.x, 0, dt * 2);
+                    this.mesh.rotation.z = THREE.MathUtils.lerp(this.mesh.rotation.z, 0, dt * 2);
+                    this.mesh.rotation.y += 0.5 * dt; 
+                }
+                
+                if (mode === 'FOCUS' && this.mesh === focusTargetMesh) {
+                    this.mesh.lookAt(camera.position); 
+                }
+
+                // Scale Logic with Global GUI Multiplier
+                let s = this.baseScale * PARAMS.particleSize; 
+                if (mode === 'SCATTER' && this.type === 'PHOTO') s = this.baseScale * 2.5 * PARAMS.particleSize; 
+                else if (mode === 'FOCUS') {
+                    if (this.mesh === focusTargetMesh) s = 5.0; 
+                    else s = 0.01; 
+                }
+                this.mesh.scale.lerp(new THREE.Vector3(s,s,s), 4*dt);
+            }
+        }
+
+        function createParticles() {
+            const sphereGeo = new THREE.SphereGeometry(0.5, 16, 16); 
+            const boxGeo = new THREE.BoxGeometry(0.55, 0.55, 0.55); 
+            const curve = new THREE.CatmullRomCurve3([
+                new THREE.Vector3(0, -0.5, 0), new THREE.Vector3(0, 0.3, 0),
+                new THREE.Vector3(0.1, 0.5, 0), new THREE.Vector3(0.3, 0.4, 0)
+            ]);
+            const candyGeo = new THREE.TubeGeometry(curve, 8, 0.08, 6, false); 
+
+            const goldMat = new THREE.MeshStandardMaterial({
+                color: CONFIG.colors.champagneGold, metalness: 0.9, roughness: 0.1,
+                emissive: 0x443300, emissiveIntensity: 0.2
+            });
+            const greenMat = new THREE.MeshStandardMaterial({
+                color: CONFIG.colors.deepGreen, metalness: 0.2, roughness: 0.8,
+                emissive: 0x002200, emissiveIntensity: 0.2 
+            });
+            const redMat = new THREE.MeshPhysicalMaterial({
+                color: CONFIG.colors.accentRed, metalness: 0.3, roughness: 0.2, clearcoat: 1.0,
+                emissive: 0x330000
+            });
+            const candyMat = new THREE.MeshStandardMaterial({ map: caneTexture, roughness: 0.4 });
+
+            for (let i = 0; i < CONFIG.particles.count; i++) {
+                const rand = Math.random();
+                let mesh, type;
+                
+                if (rand < 0.40) { mesh = new THREE.Mesh(boxGeo, greenMat); type = 'BOX'; }
+                else if (rand < 0.70) { mesh = new THREE.Mesh(boxGeo, goldMat); type = 'GOLD_BOX'; }
+                else if (rand < 0.92) { mesh = new THREE.Mesh(sphereGeo, goldMat); type = 'GOLD_SPHERE'; }
+                else if (rand < 0.97) { mesh = new THREE.Mesh(sphereGeo, redMat); type = 'RED'; }
+                else { mesh = new THREE.Mesh(candyGeo, candyMat); type = 'CANE'; }
+
+                const s = 0.4 + Math.random() * 0.5;
+                mesh.scale.set(s,s,s);
+                mesh.rotation.set(Math.random()*6, Math.random()*6, Math.random()*6);
+                
+                mainGroup.add(mesh);
+                particleSystem.push(new Particle(mesh, type));
+            }
+            
+            const starGeo = new THREE.OctahedronGeometry(1.2, 0);
+            const starMat = new THREE.MeshStandardMaterial({
+                color: 0xffdd88, emissive: 0xffaa00, emissiveIntensity: 2.0, metalness: 1.0, roughness: 0
+            });
+            const star = new THREE.Mesh(starGeo, starMat);
+            star.position.set(0, CONFIG.particles.treeHeight/2 + 1.2, 0);
+            mainGroup.add(star);
+            mainGroup.add(photoMeshGroup);
+        }
+
+        function createSnow() {
+            const snowMat = new THREE.SpriteMaterial({ 
+                map: snowTexture, 
+                color: 0xffffff, 
+                transparent: true, 
+                opacity: 0.8,
+                blending: THREE.AdditiveBlending 
+            });
+
+            for(let i=0; i<CONFIG.particles.snowCount; i++) {
+                const sprite = new THREE.Sprite(snowMat);
+                sprite.position.set(
+                    (Math.random() - 0.5) * 40,
+                    (Math.random() - 0.5) * 50,
+                    (Math.random() - 0.5) * 40
+                );
+                const s = 0.2 + Math.random() * 0.3;
+                sprite.scale.set(s,s,s);
+                
+                snowGroup.add(sprite);
+                particleSystem.push(new Particle(sprite, 'SNOW'));
+            }
+        }
+    
+        function createDefaultPhotos() {
+             const canvas = document.createElement('canvas');
+             canvas.width = 512; canvas.height = 512;
+             const ctx = canvas.getContext('2d');
+             ctx.fillStyle = '#050505'; ctx.fillRect(0,0,512,512);
+             ctx.strokeStyle = '#eebb66'; ctx.lineWidth = 15; ctx.strokeRect(20,20,472,472);
+             ctx.font = '500 60px Times New Roman'; ctx.fillStyle = '#eebb66';
+             ctx.textAlign = 'center'; 
+             ctx.fillText("JOYEUX", 256, 230);
+             ctx.fillText("NOEL", 256, 300);
+             const tex = new THREE.CanvasTexture(canvas);
+             tex.colorSpace = THREE.SRGBColorSpace;
+             addPhotoToScene(tex);
+        }
+
+        function addPhotoToScene(texture) {
+             const frameGeo = new THREE.BoxGeometry(1.4, 1.4, 0.05);
+             const frameMat = new THREE.MeshStandardMaterial({ color: CONFIG.colors.champagneGold, metalness: 1.0, roughness: 0.1 });
+             const frame = new THREE.Mesh(frameGeo, frameMat);
+             const photoGeo = new THREE.PlaneGeometry(1.2, 1.2);
+             const photoMat = new THREE.MeshBasicMaterial({ map: texture });
+             const photo = new THREE.Mesh(photoGeo, photoMat);
+             photo.position.z = 0.04;
+             const group = new THREE.Group();
+             group.add(frame);
+             group.add(photo);
+             const s = 0.8;
+             group.scale.set(s,s,s);
+             photoMeshGroup.add(group);
+             particleSystem.push(new Particle(group, 'PHOTO'));
+        }
+
+        function handleImageUpload(e) {
+            const files = e.target.files;
+            if(!files.length) return;
+            if(photoMeshGroup.children.length > 20) {
+                alert("Too many memories! Refresh to start over.");
+                return;
+            }
+            Array.from(files).forEach(f => {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    new THREE.TextureLoader().load(ev.target.result, (t) => {
+                        t.colorSpace = THREE.SRGBColorSpace;
+                        addPhotoToScene(t);
+                    });
+                }
+                reader.readAsDataURL(f);
+            });
+        }
+
+        async function initMediaPipe() {
+            video = document.getElementById('webcam');
+            const vision = await FilesetResolver.forVisionTasks(
+                "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
+            );
+            handLandmarker = await HandLandmarker.createFromOptions(vision, {
+                baseOptions: {
+                    modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
+                    delegate: "GPU"
+                },
+                runningMode: "VIDEO",
+                numHands: 1
+            });
+            
+            if (navigator.mediaDevices?.getUserMedia) {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = stream;
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = clock.getDelta();
+            const now = performance.now();
+
+            // 1. AI Throttling
+            if (now - lastAiTime > CONFIG.ai.detectInterval) {
+                if (handLandmarker && video && video.readyState >= 2) {
+                    const result = handLandmarker.detectForVideo(video, now);
+                    processGestures(result);
+                }
+                lastAiTime = now;
+            }
+
+            // 2. Smooth Rotation (Jitter Fix + GUI Speed)
+            if (STATE.mode === 'SCATTER' && STATE.hand.detected) {
+                 const targetY = STATE.hand.x * Math.PI * 0.9;
+                 const targetX = STATE.hand.y * Math.PI * 0.25;
+                 STATE.targetRotation.x = targetX;
+                 STATE.targetRotation.y = targetY;
+            } else {
+                 if(STATE.mode === 'TREE') {
+                     STATE.targetRotation.x = 0;
+                     // Use GUI Rotation Speed
+                     STATE.targetRotation.y += 0.3 * dt * PARAMS.rotationSpeed; 
+                     STATE.currentRotation.y += 0.3 * dt * PARAMS.rotationSpeed; 
+                 } else {
+                     STATE.targetRotation.y += 0.1 * dt * PARAMS.rotationSpeed;
+                 }
+            }
+
+            STATE.currentRotation.x = THREE.MathUtils.lerp(STATE.currentRotation.x, STATE.targetRotation.x, 5 * dt);
+            if (STATE.mode !== 'TREE') {
+                STATE.currentRotation.y = THREE.MathUtils.lerp(STATE.currentRotation.y, STATE.targetRotation.y, 5 * dt);
+            }
+
+            mainGroup.rotation.y = STATE.currentRotation.y;
+            mainGroup.rotation.x = STATE.currentRotation.x;
+
+            // 3. Dynamic Audio
+            if(sound && sound.isPlaying) {
+                let targetRate = 1.0;
+                if(STATE.mode === 'SCATTER') targetRate = 1.2 * PARAMS.rotationSpeed; 
+                else if (STATE.mode === 'FOCUS') targetRate = 0.8; 
+                sound.playbackRate = THREE.MathUtils.lerp(sound.playbackRate, targetRate, 2 * dt);
+            }
+
+            particleSystem.forEach(p => p.update(dt, STATE.mode, STATE.focusTarget));
+            composer.render();
+        }
+
+        function processGestures(result) {
+            if (result.landmarks && result.landmarks.length > 0) {
+                STATE.hand.detected = true;
+                const lm = result.landmarks[0];
+                
+                const newX = (lm[9].x - 0.5) * 2;
+                const newY = (lm[9].y - 0.5) * 2;
+                
+                if (Math.abs(newX - STATE.hand.x) > 0.02) STATE.hand.x = newX;
+                if (Math.abs(newY - STATE.hand.y) > 0.02) STATE.hand.y = newY;
+
+                const thumb = lm[4]; const index = lm[8]; const wrist = lm[0];
+                const pinchDist = Math.hypot(thumb.x - index.x, thumb.y - index.y);
+                const tips = [lm[8], lm[12], lm[16], lm[20]];
+                let avgDist = 0;
+                tips.forEach(t => avgDist += Math.hypot(t.x - wrist.x, t.y - wrist.y));
+                avgDist /= 4;
+
+                if (pinchDist < 0.05) {
+                    if (STATE.mode !== 'FOCUS') {
+                        STATE.mode = 'FOCUS';
+                        const photos = particleSystem.filter(p => p.type === 'PHOTO');
+                        if (photos.length) STATE.focusTarget = photos[Math.floor(Math.random()*photos.length)].mesh;
+                    }
+                } else if (avgDist < 0.2) { 
+                    STATE.mode = 'TREE';
+                    STATE.focusTarget = null;
+                } else if (avgDist > 0.35) {
+                    STATE.mode = 'SCATTER';
+                    STATE.focusTarget = null;
+                }
+            } else {
+                STATE.hand.detected = false;
+            }
+        }
+
+        function setupEvents() {
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                composer.setSize(window.innerWidth, window.innerHeight);
+                bloomPass.setSize(new THREE.Vector2(window.innerWidth, window.innerHeight));
+            });
+            document.getElementById('file-input').addEventListener('change', handleImageUpload);
+            
+            // Toggle Logic
+            const toggleUI = () => {
+                const ui = document.getElementById('ui-layer');
+                const isHidden = ui.classList.contains('ui-hidden');
+                
+                if(isHidden) {
+                    ui.classList.remove('ui-hidden');
+                    if(gui) gui.show();
+                    document.getElementById('hide-btn').innerHTML = '<span class="btn-icon">👁</span> Hide UI';
+                } else {
+                    ui.classList.add('ui-hidden');
+                    if(gui) gui.hide();
+                    document.getElementById('hide-btn').innerHTML = '<span class="btn-icon">👁</span> Show';
+                }
+            };
+
+            window.addEventListener('keydown', (e) => {
+                if (e.key.toLowerCase() === 'h') toggleUI();
+            });
+
+            document.getElementById('hide-btn').addEventListener('click', toggleUI);
+        }
+
+        init();
+    </script>
+</body>
+</html>
